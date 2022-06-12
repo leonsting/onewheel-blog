@@ -1,11 +1,12 @@
-import { ActionFunction, json } from "@remix-run/node";
+import { ActionFunction, json, LoaderFunction } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
-import { Form, useActionData } from "@remix-run/react";
+import { Link, Form, useActionData, useTransition } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
 import { Form as FormAnt, Input, Button } from "antd";
 
 import { createPost } from "~/models/post.server";
+import { requireAdminUser } from "~/session.server";
 
 const { TextArea } = Input;
 
@@ -17,7 +18,17 @@ type ActionData =
     }
   | undefined;
 
+export const loader: LoaderFunction = async ({ request }) => {
+  await requireAdminUser(request);
+  return json({});
+};
+
 export const action: ActionFunction = async ({ request }) => {
+  await requireAdminUser(request);
+
+  // TODO: remove me
+  await new Promise((res) => setTimeout(res, 1000));
+
   const formData = await request.formData();
 
   const title = formData.get("title");
@@ -48,7 +59,16 @@ const inputClassName = `w-full rounded border border-gray-500 px-2 py-1 text-lg`
 export default function NewPost() {
   const errors = useActionData() as ActionData;
 
-  return (
+  const transition = useTransition();
+  const isCreating = Boolean(transition.submission);
+
+  return transition.submission ? (
+    <p>
+      <Link to="new" className="text-blue-600 underline">
+        Create a New Post
+      </Link>
+    </p>
+  ) : (
     <Form method="post">
       {/* <FormAnt.Item
         label="Post Title:"
@@ -94,8 +114,8 @@ export default function NewPost() {
         >
           Create Post
         </button> */}
-        <Button htmlType="submit" type="primary">
-          Create Post
+        <Button htmlType="submit" type="primary" disabled={isCreating}>
+          {isCreating ? "Creating..." : "Create Post"}
         </Button>
       </p>
     </Form>
