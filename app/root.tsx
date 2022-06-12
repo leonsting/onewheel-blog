@@ -11,11 +11,13 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
 
 import tailwindStylesheetUrl from "./styles/tailwind.css";
 import antdStyleUrl from "antd/dist/antd.css";
 import { getUser } from "./session.server";
+import { getEnv } from "./env.server";
 
 export const links: LinksFunction = () => {
   return [
@@ -32,15 +34,18 @@ export const meta: MetaFunction = () => ({
 
 type LoaderData = {
   user: Awaited<ReturnType<typeof getUser>>;
+  ENV: ReturnType<typeof getEnv>;
 };
 
 export const loader: LoaderFunction = async ({ request }) => {
   return json<LoaderData>({
     user: await getUser(request),
+    ENV: getEnv(),
   });
 };
 
 export default function App() {
+  const data = useLoaderData() as LoaderData;
   return (
     <html lang="en" className="h-full">
       <head>
@@ -52,6 +57,11 @@ export default function App() {
         <ScrollRestoration />
         <Scripts />
         <LiveReload />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.ENV = ${JSON.stringify(data.ENV)}`,
+          }}
+        />
       </body>
     </html>
   );
