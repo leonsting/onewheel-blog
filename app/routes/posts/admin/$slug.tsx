@@ -1,14 +1,22 @@
 import { ActionFunction, json, LoaderFunction } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
-import { Link, Form, useActionData, useTransition } from "@remix-run/react";
+import {
+  Link,
+  Form,
+  useActionData,
+  useTransition,
+  useLoaderData,
+} from "@remix-run/react";
 import invariant from "tiny-invariant";
 
 import { Form as FormAnt, Input, Button } from "antd";
 
-import { createPost } from "~/models/post.server";
+import { createPost, getPost, Post, updatePost } from "~/models/post.server";
 import { requireAdminUser } from "~/session.server";
 
 const { TextArea } = Input;
+
+type LoaderData = { post: Post };
 
 type ActionData =
   | {
@@ -18,12 +26,22 @@ type ActionData =
     }
   | undefined;
 
-export const loader: LoaderFunction = async ({ request }) => {
+export const loader: LoaderFunction = async ({ request, params }) => {
   await requireAdminUser(request);
-  return json({});
+  if (params.slug === "new") {
+    return json({});
+  }
+
+  invariant(params.slug, "Post ID is required");
+
+  const post = await getPost(params.slug);
+
+  invariant(post, "This post is not available");
+
+  return json<LoaderData>({ post });
 };
 
-export const action: ActionFunction = async ({ request }) => {
+export const action: ActionFunction = async ({ request, params }) => {
   await requireAdminUser(request);
 
   // TODO: remove me
@@ -49,7 +67,13 @@ export const action: ActionFunction = async ({ request }) => {
   invariant(typeof slug === "string", "slug must be a string");
   invariant(typeof markdown === "string", "markdown must be a string");
 
-  await createPost({ title, slug, markdown });
+  if (params.slug === "new") {
+    await createPost({ title, slug, markdown });
+  } else {
+    // TODO: Update post
+    invariant(params?.slug, "Slug must be specified");
+    await updatePost(params.slug, { title, slug, markdown });
+  }
 
   return redirect("/posts/admin");
 };
@@ -59,8 +83,16 @@ const inputClassName = `w-full rounded border border-gray-500 px-2 py-1 text-lg`
 export default function NewPost() {
   const errors = useActionData() as ActionData;
 
+  const { post } = useLoaderData() as LoaderData;
+
   const transition = useTransition();
-  const isCreating = Boolean(transition.submission);
+  // const isCreating = Boolean(transition.submission);
+  const isCreating =
+    transition?.submission?.formData?.get("intent") === "create";
+  const isUpdating =
+    transition?.submission?.formData?.get("intent") === "update";
+
+  const isNewPost = !post;
 
   return transition.submission ? (
     <p>
@@ -69,7 +101,7 @@ export default function NewPost() {
       </Link>
     </p>
   ) : (
-    <Form method="post">
+    <Form method="post" key={post?.slug || "new"}>
       {/* <FormAnt.Item
         label="Post Title:"
         name="title"
@@ -78,7 +110,11 @@ export default function NewPost() {
         <Input />
       </FormAnt.Item> */}
       <p>
-        <Input placeholder="Post Title:" name="title" />
+        <Input
+          placeholder="Post Title:"
+          name="title"
+          defaultValue={post?.title}
+        />
         <label>
           {errors?.title ? (
             <em className="text-red-600">{errors.title}</em>
@@ -86,7 +122,7 @@ export default function NewPost() {
         </label>
       </p>
       <p>
-        <Input placeholder="Post Slug:" name="slug" />
+        <Input placeholder="Post Slug:" name="slug" defaultValue={post?.slug} />
         <label>
           {errors?.slug ? (
             <em className="text-red-600">{errors.slug}</em>
@@ -100,6 +136,7 @@ export default function NewPost() {
           rows={20}
           name="markdown"
           className={`${inputClassName} font-mono`}
+          defaultValue={post?.markdown}
         />
         <label htmlFor="markdown">
           {errors?.markdown ? (
@@ -114,8 +151,15 @@ export default function NewPost() {
         >
           Create Post
         </button> */}
-        <Button htmlType="submit" type="primary" disabled={isCreating}>
-          {isCreating ? "Creating..." : "Create Post"}
+        <Button
+          htmlType="submit"
+          type="primary"
+          disabled={isCreating || isUpdating}
+          name="intent"
+          value={isNewPost ? "create" : "update"}
+        >
+          {isNewPost ? (isCreating ? "Creating..." : "Create Post") : null}
+          {isNewPost ? null : isUpdating ? "Updating..." : "Create Post"}
         </Button>
       </p>
     </Form>
