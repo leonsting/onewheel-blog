@@ -11,7 +11,13 @@ import invariant from "tiny-invariant";
 
 import { Form as FormAnt, Input, Button } from "antd";
 
-import { createPost, getPost, Post, updatePost } from "~/models/post.server";
+import {
+  createPost,
+  deletePost,
+  getPost,
+  Post,
+  updatePost,
+} from "~/models/post.server";
 import { requireAdminUser } from "~/session.server";
 
 const { TextArea } = Input;
@@ -48,6 +54,13 @@ export const action: ActionFunction = async ({ request, params }) => {
   await new Promise((res) => setTimeout(res, 1000));
 
   const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "delete") {
+    invariant(params?.slug, "Slug must be specified");
+    await deletePost(params.slug);
+    return redirect("/posts/admin");
+  }
 
   const title = formData.get("title");
   const slug = formData.get("slug");
@@ -91,16 +104,12 @@ export default function NewPost() {
     transition?.submission?.formData?.get("intent") === "create";
   const isUpdating =
     transition?.submission?.formData?.get("intent") === "update";
+  const isDeleting =
+    transition?.submission?.formData?.get("intent") === "delete";
 
   const isNewPost = !post;
 
-  return transition.submission ? (
-    <p>
-      <Link to="new" className="text-blue-600 underline">
-        Create a New Post
-      </Link>
-    </p>
-  ) : (
+  return (
     <Form method="post" key={post?.slug || "new"}>
       {/* <FormAnt.Item
         label="Post Title:"
@@ -144,13 +153,18 @@ export default function NewPost() {
           ) : null}
         </label>
       </p>
-      <p className="text-right">
-        {/* <button
-          type="submit"
-          className="rounded bg-blue-500 py-2 px-4 text-white hover:bg-blue-600 focus:bg-blue-400 disabled:bg-blue-300"
-        >
-          Create Post
-        </button> */}
+      <div className="flex justify-end gap-4">
+        {!isNewPost && (
+          <Button
+            htmlType="submit"
+            danger
+            name="intent"
+            value="delete"
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete Post"}
+          </Button>
+        )}
         <Button
           htmlType="submit"
           type="primary"
@@ -161,7 +175,7 @@ export default function NewPost() {
           {isNewPost ? (isCreating ? "Creating..." : "Create Post") : null}
           {isNewPost ? null : isUpdating ? "Updating..." : "Create Post"}
         </Button>
-      </p>
+      </div>
     </Form>
   );
 }
