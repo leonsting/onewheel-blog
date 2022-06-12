@@ -6,6 +6,8 @@ import {
   useActionData,
   useTransition,
   useLoaderData,
+  useCatch,
+  useParams,
 } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
@@ -42,7 +44,9 @@ export const loader: LoaderFunction = async ({ request, params }) => {
 
   const post = await getPost(params.slug);
 
-  invariant(post, "This post is not available");
+  if (!post) {
+    throw new Response("Not Found", { status: 404 });
+  }
 
   return json<LoaderData>({ post });
 };
@@ -173,9 +177,20 @@ export default function NewPost() {
           value={isNewPost ? "create" : "update"}
         >
           {isNewPost ? (isCreating ? "Creating..." : "Create Post") : null}
-          {isNewPost ? null : isUpdating ? "Updating..." : "Create Post"}
+          {isNewPost ? null : isUpdating ? "Updating..." : "Update Post"}
         </Button>
       </div>
     </Form>
   );
+}
+
+export function CatchBoundary() {
+  const caught = useCatch();
+  const params = useParams();
+  if (caught.status === 404) {
+    return (
+      <div>Uh no! The post with the slug "{params.slug}" doesn't exist.</div>
+    );
+  }
+  throw new Error(`Unsupported throw response status code : ${caught.status}`);
 }
